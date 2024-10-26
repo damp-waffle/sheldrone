@@ -103,20 +103,13 @@ def genBatch(replays: list[dict], author: tuple[str, str], title: str | None=Non
         return es
     else:
         es = list()
-        sets = (len(fields) // 24)-1
-        for i in range(sets):
-            s = {'title':' '}
-            f = list()
-            # print(f'set {i + 1}:')
-            for j in range(24):
-                f.append(fields.pop(24))
-            else:
-                s['fields']=f
-                es.append(s)
-        for i in range(6):
-            fields.pop(24)
-        e['fields']=fields
-        es.insert(0, e)
+        e['fields']=fields[:24]
+        for i in range(len(fields)//24):
+            if len(fields)-((i+1)*24) > 0:
+                ee = fields[24*i:24*(i+1)]
+                eee = {'title':' '}
+                eee['fields']=ee
+                es.append(eee)
         for i in range(len(es)):
             es[i] = discord.Embed.from_dict(es[i])
         return es
