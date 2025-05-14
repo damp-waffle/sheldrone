@@ -16,9 +16,9 @@ class BotClient(discord.Client):
         self.tree = app_commands.CommandTree(self)
     async def setup_hook(self):
         # self.tree.clear_commands(guild=None)
-        # await self.tree.sync()
-        self.tree.clear_commands(guild=GUILD)
-        await self.tree.sync(guild=GUILD)
+        await self.tree.sync()
+        # self.tree.clear_commands(guild=GUILD)
+        # await self.tree.sync(guild=GUILD)
 
 TOKEN = os.getenv('DTOKEN')
 
