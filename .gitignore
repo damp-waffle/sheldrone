@@ -1,12 +1,6 @@
+*.sql
 *.json
 __pycache__
+tests-temps
 .env
 config.txt
-db_stuff.py
-em.py
-iksm.py
-move.py
-scrapertest.py
-tre.py
-viewm.py
-vv.py

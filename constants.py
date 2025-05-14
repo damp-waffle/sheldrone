@@ -2,11 +2,13 @@ auth_token_disclaimer = (
             "In order to register you, I will save your Discord User ID to my database and pair it to a Nintendo Switch Online session token. If you aren't aware of Nintendo's use of authentication tokens, "
             + "please read the notice below before proceeding:\n\n"
             + "```This bot allows for automatic token generation. Automatic token generation involves making a secure request to a non-Nintendo server with minimal, non-identifying information. "
-            + "Users who feel uncomfortable with this may opt to manually retrieve and input their tokens instead. For information on manually retrieving your NSO tokens, refer to the Token Generation "
+            + "The server used for token generation is the nxapi-znca-api, an API used by the popular tool/app nxapi and many other applications such as this one to generate authentication tokens for the NSO App API. "
+            + "For transparency and in accordance with the usage terms of nxapi-znca-api, the end user help guide is linked below. Any issues with Shel-drone should not be directed to the creator of nxapi. "
+            + "Users who feel uncomfortable with this process may opt to manually retrieve and input their tokens instead. For information on manually retrieving your NSO tokens, refer to the Token Generation "
             + "section of the s3s github page (https://github.com/frozenpandaman/s3s?tab=readme-ov-file#token-generation-)\n\nIf you already use s3s, you can copy the session_token from your config.txt file "
             + "in the s3s directory. Whatever method you opt for, make absolutely sure that you do NOT share your session token with anyone else. If you do, they will have access to your Nintendo Switch Online "
             + "account and will be able to make requests on your behalf. If you are concerned about your session token being leaked, you can revoke it.```\n"
-            + "Unfortunately, if you feel uncomfortable with SplReplayBot's requirement of storing your Discord User ID and NSO authentication tokens, there is no other solution as of right now that "
+            + "Unfortunately, if you feel uncomfortable with Shel-drone's requirement of storing your Discord User ID and NSO authentication tokens, there is no other solution as of right now that "
             + "allows for the bot's functionality in a more secure or efficient way. If there is demand for such a solution, then one will be looked into. But there are no plans to do so at this time."
             + "\n\n Are you ready to continue?\n")
 
@@ -19,85 +21,98 @@ auto_sesh_instr = (
 
 token_rec="Running any command that fetches information from Splatnet can regenerate your tokens. As long as the session token is valid, your g token and bullet token will automatically regenerate each time you use a command that requires them."
 
+questionmark = '<:unknown:1350552391833092159>'
+loadinganimation = '<a:loading:1370229081794416670>'
+
+
+modeColor= {
+           'PRIVATE'  :0xa51ee1,
+           'REGULAR'  :0xcff662,
+           'BANKARA'  :0xf54910,
+           'X_BATTLE' :0x0fdb9b,
+           'LEAGUE'   :0xf02d7d,
+           'FEST'     :0xffffff}
 modeMoji = {
-           'PRIVATE'  :'<:pb:1271998029771047003>',
-           'REGULAR'  :'<:tw:1272003692597481504>',
-           'BANKARA'  :'<:ab:1271952798547710052>',
-           'X_BATTLE' :'<:xb:1271952829501935646>',
-           'LEAGUE'   :'<:ch:1271952867606921399>',
-           'FEST'     :'<:sf:1272003582215983167>',
-           '?'        :'<:unknown:1292671542626488372>'}
+           'PRIVATE'  :'<:pb:1350543221075218512>',
+           'REGULAR'  :'<:tw:1350543386268008653>',
+           'BANKARA'  :'<:ab:1350543025021124669>',
+           'X_BATTLE' :'<:xb:1350543097158697102>',
+           'LEAGUE'   :'<:ch:1350543131807842386>',
+           'FEST'     :'<:sf:1350543336305590272>',
+           '?'        :questionmark}
 ruleMoji = {
-           'A':'<:tw:1272003692597481504>',
-           'E':'<:sz:1267318976363364475>',
-           'I':'<:tc:1267319021523570749>',
-           'M':'<:rm:1267319123046699090>',
-           'Q':'<:cb:1267319158002159658>',
-           'U':'<:tri:1272003608808001557>',
-           '?':'<:unknown:1292671542626488372>'}
+           'A':'<:tw:1350543386268008653>',
+           'E':'<:sz:1350542653573435392>',
+           'I':'<:tc:1350542722980642977>',
+           'M':'<:rm:1350542749866262618>',
+           'Q':'<:cb:1350542772075106466>',
+           'U':'<:tri:1350543360020058184>',
+           '?':questionmark}
 
 REPLAY_URL = 'https://s.nintendo.com/av5ja-lp1/znca/game/4834290508791808?p=%2Freplay%3Fcode%3D'
 
 SPLATNET_URL = "https://api.lp1.av5ja.srv.nintendo.net"
 
-VERSION_OVERRIDE = "2.10.1"
+SPLATNET_VERSION = "2.12.0"
+
+SPLATOON_VERSION = "9.3.0"
 
 medals = {
-    "#1 Overall Splatter":"<:gold:1271940643924611072>",
-    "#1 Splat Zone Inker":"<:gold:1271940643924611072>",
-    "#1 Splat Zone Guard":"<:gold:1271940643924611072>",
-    "#1 Score Booster":"<:gold:1271940643924611072>",
-    "Record-Score Setter":"<:gold:1271940643924611072>",
-    "#1 Clam Carrier":"<:gold:1271940643924611072>",
-    "#1 Turf Inker":"<:gold:1271940643924611072>",
-    "#1 Popular Target":"<:gold:1271940643924611072>",
-    "#1 Home-Base Inker":"<:gold:1271940643924611072>",
-    "#1 Enemy-Base Inker":"<:gold:1271940643924611072>",
-    "#1 Super Jump Spot":"<:gold:1271940643924611072>",
-    "#1 Enemy Splatter":"<:gold:1271940643924611072>",
-    "#1 Splat Assister":"<:gold:1271940643924611072>",
-    "#1 Splat Zone Hero":"<:silver:1271940683053138133>",
-    "#1 Checkpoint Breaker":"<:silver:1271940683053138133>",
-    "#1 Tower Stopper":"<:silver:1271940683053138133>",
-    "#1 Rainmaker Carrier":"<:silver:1271940683053138133>",
-    "#1 Rainmaker Stopper":"<:silver:1271940683053138133>",
-    "#1 Clam Stopper":"<:silver:1271940683053138133>",
-    "#1 Base Defender":"<:silver:1271940683053138133>",
-    "#1 Ground Traveler":"<:silver:1271940683053138133>",
-    "#1 Damage Taker":"<:silver:1271940683053138133>",
-    "#1 Ink Consumer":"<:silver:1271940683053138133>",
-    "First Splat!":"<:silver:1271940683053138133>",
-    "#1 Trizooka User":"<:silver:1271940683053138133>",
-    "#1 Big Bubbler User":"<:silver:1271940683053138133>",
-    "#1 Killer Wail 5.1 User":"<:silver:1271940683053138133>",
-    "#1 Tenta Missiles User":"<:silver:1271940683053138133>",
-    "#1 Ink Storm User":"<:silver:1271940683053138133>",
-    "#1 Booyah Bomb User":"<:silver:1271940683053138133>",
-    "#1 Ultra Stamp User":"<:silver:1271940683053138133>",
-    "#1 Inkjet User":"<:silver:1271940683053138133>",
-    "#1 Zipcaster User":"<:silver:1271940683053138133>",
-    "#1 Wave Breaker User":"<:silver:1271940683053138133>",
-    "#1 Ink Vac User":"<:silver:1271940683053138133>",
-    "#1 Crab Tank User":"<:silver:1271940683053138133>",
-    "#1 Reefslider User":"<:silver:1271940683053138133>",
-    "#1 Triple Inkstrike User":"<:silver:1271940683053138133>",
-    "#1 Tacticooler User":"<:silver:1271940683053138133>",
-    "#1 Kraken Royale User":"<:silver:1271940683053138133>",
-    "#1 Super Chump User":"<:silver:1271940683053138133>",
-    "#1 Triple Splashdown User":"<:silver:1271940683053138133>",
-    "#1 Splattercolor Screen User":"<:silver:1271940683053138133>",
-    "#2 Overall Splatter":"<:silver:1271940683053138133>",
-    "#2 Splat Zone Inker":"<:silver:1271940683053138133>",
-    "#2 Splat Zone Guard":"<:silver:1271940683053138133>",
-    "#2 Score Booster":"<:silver:1271940683053138133>",
-    "#2 Clam Carrier":"<:silver:1271940683053138133>",
-    "#2 Turf Inker":"<:silver:1271940683053138133>",
-    "#2 Popular Target":"<:silver:1271940683053138133>",
-    "#2 Home-Base Inker":"<:silver:1271940683053138133>",
-    "#2 Enemy-Base Inker":"<:silver:1271940683053138133>",
-    "#2 Super Jump Spot":"<:silver:1271940683053138133>",
-    "#2 Enemy Splatter":"<:silver:1271940683053138133>",
-    "#2 Splat Assister":"<:silver:1271940683053138133>"
+    "#1 Overall Splatter":"<:gold:1350542957194776666>",
+    "#1 Splat Zone Inker":"<:gold:1350542957194776666>",
+    "#1 Splat Zone Guard":"<:gold:1350542957194776666>",
+    "#1 Score Booster":"<:gold:1350542957194776666>",
+    "Record-Score Setter":"<:gold:1350542957194776666>",
+    "#1 Clam Carrier":"<:gold:1350542957194776666>",
+    "#1 Turf Inker":"<:gold:1350542957194776666>",
+    "#1 Popular Target":"<:gold:1350542957194776666>",
+    "#1 Home-Base Inker":"<:gold:1350542957194776666>",
+    "#1 Enemy-Base Inker":"<:gold:1350542957194776666>",
+    "#1 Super Jump Spot":"<:gold:1350542957194776666>",
+    "#1 Enemy Splatter":"<:gold:1350542957194776666>",
+    "#1 Splat Assister":"<:gold:1350542957194776666>",
+    "#1 Splat Zone Hero":"<:silver:1350542991554515016>",
+    "#1 Checkpoint Breaker":"<:silver:1350542991554515016>",
+    "#1 Tower Stopper":"<:silver:1350542991554515016>",
+    "#1 Rainmaker Carrier":"<:silver:1350542991554515016>",
+    "#1 Rainmaker Stopper":"<:silver:1350542991554515016>",
+    "#1 Clam Stopper":"<:silver:1350542991554515016>",
+    "#1 Base Defender":"<:silver:1350542991554515016>",
+    "#1 Ground Traveler":"<:silver:1350542991554515016>",
+    "#1 Damage Taker":"<:silver:1350542991554515016>",
+    "#1 Ink Consumer":"<:silver:1350542991554515016>",
+    "First Splat!":"<:silver:1350542991554515016>",
+    "#1 Trizooka User":"<:silver:1350542991554515016>",
+    "#1 Big Bubbler User":"<:silver:1350542991554515016>",
+    "#1 Killer Wail 5.1 User":"<:silver:1350542991554515016>",
+    "#1 Tenta Missiles User":"<:silver:1350542991554515016>",
+    "#1 Ink Storm User":"<:silver:1350542991554515016>",
+    "#1 Booyah Bomb User":"<:silver:1350542991554515016>",
+    "#1 Ultra Stamp User":"<:silver:1350542991554515016>",
+    "#1 Inkjet User":"<:silver:1350542991554515016>",
+    "#1 Zipcaster User":"<:silver:1350542991554515016>",
+    "#1 Wave Breaker User":"<:silver:1350542991554515016>",
+    "#1 Ink Vac User":"<:silver:1350542991554515016>",
+    "#1 Crab Tank User":"<:silver:1350542991554515016>",
+    "#1 Reefslider User":"<:silver:1350542991554515016>",
+    "#1 Triple Inkstrike User":"<:silver:1350542991554515016>",
+    "#1 Tacticooler User":"<:silver:1350542991554515016>",
+    "#1 Kraken Royale User":"<:silver:1350542991554515016>",
+    "#1 Super Chump User":"<:silver:1350542991554515016>",
+    "#1 Triple Splashdown User":"<:silver:1350542991554515016>",
+    "#1 Splattercolor Screen User":"<:silver:1350542991554515016>",
+    "#2 Overall Splatter":"<:silver:1350542991554515016>",
+    "#2 Splat Zone Inker":"<:silver:1350542991554515016>",
+    "#2 Splat Zone Guard":"<:silver:1350542991554515016>",
+    "#2 Score Booster":"<:silver:1350542991554515016>",
+    "#2 Clam Carrier":"<:silver:1350542991554515016>",
+    "#2 Turf Inker":"<:silver:1350542991554515016>",
+    "#2 Popular Target":"<:silver:1350542991554515016>",
+    "#2 Home-Base Inker":"<:silver:1350542991554515016>",
+    "#2 Enemy-Base Inker":"<:silver:1350542991554515016>",
+    "#2 Super Jump Spot":"<:silver:1350542991554515016>",
+    "#2 Enemy Splatter":"<:silver:1350542991554515016>",
+    "#2 Splat Assister":"<:silver:1350542991554515016>"
 }
 
 sha_keys = {

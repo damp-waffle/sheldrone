@@ -1,25 +1,23 @@
-import mysql.connector.cursor
 import requests, json, mysql.connector, os
 from dotenv import load_dotenv
-import splatnet3_scraper.auth
-import splatnet3_scraper.auth.tokens
-import constants
+from typing import Any
+import auth, constants, request_parts
 import time
 
-def login(nso: splatnet3_scraper.auth.NSO, uri: str, uid: str):
+version = constants.SPLATNET_VERSION
+
+async def login(uri: str, verifier:str, uid: str):
     """Generates a session token based on the given Nintendo Online URI."""
     try:
-        sesh_code = nso.parse_npf_uri(uri)
-        print(sesh_code)
-        SESSION_TOKEN = nso.get_session_token(sesh_code) 
+        SESSION_TOKEN = auth.get_session_token(uri, verifier) 
         print("session token successfully generated: ")
         print(SESSION_TOKEN)
-        insert_tokens(uid=uid, session_token=splatnet3_scraper.auth.Token(SESSION_TOKEN, "session_token", time.time()))
+        await insert_tokens(uid=uid, session_token={"value": SESSION_TOKEN, "timestamp": time.time()})
         return "Successfully added user and token to database!"
     except:
         return "An error occurred."
 
-def insert_tokens(uid: str, db: mysql.connector.MySQLConnection | None=None, session_token: splatnet3_scraper.auth.Token | None=None, gtoken: splatnet3_scraper.auth.Token | None=None, bullet_token: splatnet3_scraper.auth.Token | None=None):
+async def insert_tokens(uid: str, db: mysql.connector.MySQLConnection | None=None, session_token: dict[str, Any] | None=None, gtoken: dict[str, Any] | None=None, bullet_token: dict[str, Any] | None=None):
     """Given any of the three tokens used for Splatnet authentication, updates a user's tokens based on the given Discord UID."""
     WHERE = f"WHERE uid = '{uid}'"
     if not db:
@@ -35,22 +33,22 @@ def insert_tokens(uid: str, db: mysql.connector.MySQLConnection | None=None, ses
     result = cursor.fetchall()
     if len(result):
         if session_token:
-            cursor.execute(f"UPDATE tokens SET st_val = '{session_token.value}', st_ts = {session_token.timestamp} {WHERE};")
+            cursor.execute(f"UPDATE tokens SET st_val = '{session_token["value"]}', st_ts = {session_token["timestamp"]} {WHERE};")
             db.commit()
         if gtoken:
-            cursor.execute(f"UPDATE tokens SET gt_val = '{gtoken.value}', gt_ts = {gtoken.timestamp} {WHERE};")
+            cursor.execute(f"UPDATE tokens SET gt_val = '{gtoken["value"]}', gt_ts = {gtoken["timestamp"]} {WHERE};")
             db.commit()
         if bullet_token:
-            cursor.execute(f"UPDATE tokens SET bt_val = '{bullet_token.value}', bt_ts = {bullet_token.timestamp} {WHERE};")
+            cursor.execute(f"UPDATE tokens SET bt_val = '{bullet_token["value"]}', bt_ts = {bullet_token["timestamp"]} {WHERE};")
             db.commit()
     else:
-        cursor.execute(f"INSERT INTO tokens (uid, st_val, st_ts) VALUES ('{uid}','{session_token.value}',{session_token.timestamp});")
+        cursor.execute(f"INSERT INTO tokens (uid, st_val, st_ts) VALUES ('{uid}','{session_token["value"]}',{session_token["timestamp"]});")
         db.commit()
         print(f"Registered user {uid}")
     cursor.close()
 
-def load_tokens(uid: str, opt=0) -> splatnet3_scraper.auth.TokenManager | None:
-    """Given a Discord User ID, returns a dict of the 3 tokens belonging to said user in order to construct a TokenManager instance."""
+async def load_tokens(uid: str, opt=0) -> dict[str, Any] | None:
+    """Given a Discord User ID, returns a dict of the 3 tokens belonging to said user."""
     load_dotenv()
     db = mysql.connector.connect(
     host=os.getenv('SERVER_NAME'),
@@ -62,60 +60,87 @@ def load_tokens(uid: str, opt=0) -> splatnet3_scraper.auth.TokenManager | None:
     cursor.execute(f"SELECT * FROM tokens WHERE uid = {uid}")
     result = cursor.fetchall()
     if result:
-        token_man = splatnet3_scraper.auth.TokenManagerConstructor.from_session_token(result[0][1])
-        token_man.nso._version = constants.VERSION_OVERRIDE
+        tokens = {
+            "session_token": {
+                "value": result[0][1],
+                "timestamp": result[0][2]
+            }
+        }
         if result[0][3]:
-            token_man.add_token(result[0][3], name="gtoken", timestamp=float(result[0][4]))
-        elif opt==0:
-            token_man.generate_gtoken()
-            insert_tokens(uid, db, gtoken=token_man.get_token("gtoken"))
+            tokens["gtoken"] = {
+                "value": result[0][3],
+                "timestamp": result[0][4]
+            }
         if result[0][5]:
-            token_man.add_token(result[0][5], name="bullet_token", timestamp=float(result[0][6]))
-        elif opt==0:
-            token_man.generate_bullet_token()  
-            insert_tokens(uid, db, bullet_token=token_man.get_token("bullet_token"))
+            tokens["bullet_token"] = {
+                "value": result[0][5],
+                "timestamp": result[0][6]
+            }
         if opt==0:
-            if prefetch_checks(token_man.get_token("gtoken"), token_man.get_token("bullet_token")):
-                token_man.generate_gtoken()
-                token_man.generate_bullet_token()
-                insert_tokens(uid, db, gtoken=token_man.get_token("gtoken"), bullet_token=token_man.get_token("bullet_token"))
+            stoken = tokens["session_token"]["value"]
+            lang = await auth.get_user_lang(stoken)
+            if prefetch_checks(tokens["gtoken"]["value"], tokens["bullet_token"]["value"], lang):
+                g = await auth.get_gtoken(tokens["session_token"]["value"])
+                # print(g)
+                gtoken = g["gtoken"]
+                user_info = g["user_info"]
+                if prefetch_checks(gtoken, tokens["bullet_token"]["value"], lang):
+                    bullet_token = {"value": auth.get_bullet_token(gtoken, user_info), "timestamp": time.time()}
+                gtoken_ = {"value": gtoken, "timestamp": time.time()}
+                await insert_tokens(uid, db, gtoken=gtoken_, bullet_token=bullet_token)
         db.close()
-        return token_man
+        return tokens
     else:
         return None
 
-def prefetch_checks(g: splatnet3_scraper.auth.Token, b: splatnet3_scraper.auth.Token) -> bool:
+def prefetch_checks(g: str, b: str, lang: str = "en-US") -> bool:
         """Executes a simple query to the Splatnet API in order to verify that the g and bullet tokens are valid. Returns FALSE if the query is successful, returns TRUE if the query fails."""
-        gql = splatnet3_scraper.auth.GraphQLQueries()
-        graphql_body = {"extensions": {"persistedQuery": {"sha256Hash": constants.sha_keys["HomeQuery"],"version": 1}},"variables":{"naCountry":"US"}}
-        test = requests.post(constants.SPLATNET_URL + "/api/graphql", data=json.dumps(graphql_body), headers=gql.query_header(bullet_token=b.value, language="en-US"), cookies=dict(_gtoken=g.value))
+        head = request_parts.GRAPHQL_HEAD
+        head["Authorization"] = f"Bearer {b}"
+        head["Accept-Language"] = lang
+        head["X-Web-View-Ver"] = version
+        head["Referer"] = f"{constants.SPLATNET_URL}?lang={lang}&na_country={lang[:-2]}&na_lang={lang}"
+        graphql_body = {"extensions": {"persistedQuery": {"sha256Hash": constants.sha_keys["HomeQuery"],"version": 1}},"variables":{"naCountry":lang[:-2]}}
+        test = requests.post(constants.SPLATNET_URL + "/api/graphql", data=json.dumps(graphql_body), headers=head, cookies=dict(_gtoken=g))
         return test.status_code!=200
 
-def get_replay(token_man: splatnet3_scraper.auth.TokenManager, code: str):
-    """Executes a query and returns a dict consisting of replay data using the Tokens in the given TokenManager instance and the specified Replay Code."""
+async def get_replay(tokens: dict[str, Any], code: str):
+    """Executes a query using a user's given tokens and a replay code and returns a dict consisting of replay data."""
     if len(code)!=16:
         code=replay_code(code)
         if code=="INVALID":
             return "invalid replay code format"
-    g = token_man.get_token("gtoken")
-    b = token_man.get_token("bullet_token")
-    gql = splatnet3_scraper.auth.GraphQLQueries()
+    g = tokens["gtoken"]["value"]
+    b = tokens["bullet_token"]["value"]
+    lang = await auth.get_user_lang(tokens["session_token"]["value"])
+    country = lang[:-2]
+    head = request_parts.GRAPHQL_HEAD
+    head["Authorization"] = f"Bearer {b}"
+    head["Accept-Language"] = lang
+    head["X-Web-View-Ver"] = version
+    head["Referer"] = f"{constants.SPLATNET_URL}?lang={lang}&na_country={country}&na_lang={lang}"
     graphql_body = {"extensions": {"persistedQuery": {"sha256Hash": constants.sha_keys["DownloadSearchReplayQuery"],"version": 1}},"variables": { "code": code }}
-    query = requests.post(constants.SPLATNET_URL + "/api/graphql", data=json.dumps(graphql_body), headers=gql.query_header(bullet_token=b.value, language="en-US"), cookies=dict(_gtoken=g.value))
+    query = requests.post(constants.SPLATNET_URL + "/api/graphql", data=json.dumps(graphql_body), headers=head, cookies=dict(_gtoken=g))
     if query.status_code == 200:
         response = json.loads(query.text)
         return response["data"]
     else:
         print(f'Error: {query.status_code}')
         print(query.headers)
+        print(query.text)
 
-def get_replay_history(token_man: splatnet3_scraper.auth.TokenManager):
-    """Executes multiple queries and returns a dict consisting of data from multiple replays using the Tokens in the given TokenManager instance and the specified Replay Code."""
-    g = token_man.get_token("gtoken")
-    b = token_man.get_token("bullet_token")
-    gql = splatnet3_scraper.auth.GraphQLQueries()
-    graphql_body = {"extensions": {"persistedQuery": {"sha256Hash": constants.sha_keys["ReplayQuery"],"version": 1}},"variables":{"naCountry":"US"}}
-    query = requests.post(constants.SPLATNET_URL + "/api/graphql", data=json.dumps(graphql_body), headers=gql.query_header(bullet_token=b.value, language="en-US"), cookies=dict(_gtoken=g.value))
+async def get_replay_history(tokens: dict[str, Any]):
+    """Executes multiple queries using a user's given tokens and a replay code and returns a dict consisting of data from multiple replays."""
+    g = tokens["gtoken"]["value"]
+    b = tokens["bullet_token"]["value"]
+    lang = await auth.get_user_lang(tokens["session_token"]["value"])
+    head = request_parts.GRAPHQL_HEAD
+    head["Authorization"] = f"Bearer {b}"
+    head["Accept-Language"] = lang
+    head["X-Web-View-Ver"] = version
+    head["Referer"] = f"{constants.SPLATNET_URL}?lang={lang}&na_country={lang[:-2]}&na_lang={lang}"
+    graphql_body = {"extensions": {"persistedQuery": {"sha256Hash": constants.sha_keys["ReplayQuery"],"version": 1}},"variables":{"naCountry":lang[:-2]}}
+    query = requests.post(constants.SPLATNET_URL + "/api/graphql", data=json.dumps(graphql_body), headers=head, cookies=dict(_gtoken=g))
     if query.status_code == 200:
         response = json.loads(query.text)
         return response['data']['replays']['nodes']
@@ -123,39 +148,55 @@ def get_replay_history(token_man: splatnet3_scraper.auth.TokenManager):
         print(f'Error: {query.status_code}')
         print(query.headers)
 
-def queue_download(token_man: splatnet3_scraper.auth.TokenManager, replay_id: str):
-    """Executes a query that queues a replay to be downloaded from the lobby terminal in-game from a given replay ID (only accessible by scraping replay data). Uses the tokens in the given TokenManager instance."""
-    g = token_man.get_token("gtoken")
-    b = token_man.get_token("bullet_token")
-    gql = splatnet3_scraper.auth.GraphQLQueries()
+async def queue_download(tokens: dict[str, Any], replay_id: str):
+    """Executes a query that queues a replay to be downloaded from the lobby terminal in-game from a given replay ID (only accessible by scraping replay data)."""
+    g = tokens["gtoken"]["value"]
+    b = tokens["bullet_token"]["value"]
+    lang = await auth.get_user_lang(tokens["session_token"]["value"])
+    head = request_parts.GRAPHQL_HEAD
+    head["Authorization"] = f"Bearer {b}"
+    head["Accept-Language"] = lang
+    head["X-Web-View-Ver"] = version
+    head["Referer"] = f"{constants.SPLATNET_URL}?lang={lang}&na_country={lang[:-2]}&na_lang={lang}"
     graphql_body = {"extensions": {"persistedQuery": {"sha256Hash": constants.sha_keys["ReplayModalReserveReplayDownloadMutation"],"version": 1}},"variables": { "input": { "id": replay_id } }}
-    query = requests.post(constants.SPLATNET_URL + "/api/graphql", data=json.dumps(graphql_body), headers=gql.query_header(bullet_token=b.value, language="en-US"), cookies=dict(_gtoken=g.value))
+    query = requests.post(constants.SPLATNET_URL + "/api/graphql", data=json.dumps(graphql_body), headers=head, cookies=dict(_gtoken=g))
     if query.status_code == 200:
         response = json.loads(query.text)
         return response["data"]["reserveReplayDownload"]
     else:
         return query
     
-def queue_batch_download(token_man: splatnet3_scraper.auth.TokenManager, replay_ids: list[str]):
+async def queue_batch_download(tokens: dict[str, Any], replay_ids: list[str]):
     """Executes multiple queries that queue all replays passed through via their IDs to be downloaded from the lobby terminal in-game."""
-    g = token_man.get_token("gtoken")
-    b = token_man.get_token("bullet_token")
-    gql = splatnet3_scraper.auth.GraphQLQueries()
+    g = tokens["gtoken"]["value"]
+    b = tokens["bullet_token"]["value"]
+    lang = await auth.get_user_lang(tokens["session_token"]["value"])
+    head = request_parts.GRAPHQL_HEAD
+    head["Authorization"] = f"Bearer {b}"
+    head["Accept-Language"] = lang
+    head["X-Web-View-Ver"] = version
+    head["Referer"] = f"{constants.SPLATNET_URL}?lang={lang}&na_country={lang[:-2]}&na_lang={lang}"
     success=0
     for id in replay_ids:
         graphql_body = {"extensions": {"persistedQuery": {"sha256Hash": constants.sha_keys["ReplayModalReserveReplayDownloadMutation"],"version": 1}},"variables": { "input": { "id": id } }}
-        query = requests.post(constants.SPLATNET_URL + "/api/graphql", data=json.dumps(graphql_body), headers=gql.query_header(bullet_token=b.value, language="en-US"), cookies=dict(_gtoken=g.value))
+        query = requests.post(constants.SPLATNET_URL + "/api/graphql", data=json.dumps(graphql_body), headers=head, cookies=dict(_gtoken=g))
         if query.status_code==200:
             success+=1
     return success
 
-def get_album(token_man: splatnet3_scraper.auth.TokenManager):
+async def get_album(tokens: dict[str, Any]):
     """Executes a query to get and display the photos recently shared to Splatnet. A number of photos to grab can be specified. If there is no number, all available photos are grabbed."""
-    g = token_man.get_token("gtoken")
-    b = token_man.get_token("bullet_token")
-    gql = splatnet3_scraper.auth.GraphQLQueries()
-    graphql_body = {"extensions": {"persistedQuery": {"sha256Hash": constants.sha_keys["PhotoAlbumQuery"],"version": 1}},"variables":{"naCountry":"US"}}
-    query = requests.post(constants.SPLATNET_URL + "/api/graphql", data=json.dumps(graphql_body), headers=gql.query_header(bullet_token=b.value, language="en-US"), cookies=dict(_gtoken=g.value))
+    g = tokens["gtoken"]["value"]
+    b = tokens["bullet_token"]["value"]
+    lang = await auth.get_user_lang(tokens["session_token"]["value"])
+    country = lang[:-2]
+    head = request_parts.GRAPHQL_HEAD
+    head["Authorization"] = f"Bearer {b}"
+    head["Accept-Language"] = lang
+    head["X-Web-View-Ver"] = version
+    head["Referer"] = f"{constants.SPLATNET_URL}?lang={lang}&na_country={country}&na_lang={lang}"
+    graphql_body = {"extensions": {"persistedQuery": {"sha256Hash": constants.sha_keys["PhotoAlbumQuery"],"version": 1}},"variables":{"naCountry":lang[:-2]}}
+    query = requests.post(constants.SPLATNET_URL + "/api/graphql", data=json.dumps(graphql_body), headers=head, cookies=dict(_gtoken=g))
     if query.status_code == 200:
         response = json.loads(query.text)
         try:
@@ -167,13 +208,19 @@ def get_album(token_man: splatnet3_scraper.auth.TokenManager):
     
 
 
-def get_user_info(token_man: splatnet3_scraper.auth.TokenManager):
+async def get_cosmetic_user_info(tokens: dict[str, Any]):
     """Executes a simple query to grab the name and user icon of the user initiating the command. This is to make replay embeds look even prettier."""
-    g = token_man.get_token("gtoken")
-    b = token_man.get_token("bullet_token")
-    gql = splatnet3_scraper.auth.GraphQLQueries()
-    graphql_body = {"extensions": {"persistedQuery": {"sha256Hash": constants.sha_keys["SettingQuery"],"version": 1}},"variables":{"naCountry":"US"}}
-    query = requests.post(constants.SPLATNET_URL + "/api/graphql", data=json.dumps(graphql_body), headers=gql.query_header(bullet_token=b.value, language="en-US"), cookies=dict(_gtoken=g.value))
+    g = tokens["gtoken"]["value"]
+    b = tokens["bullet_token"]["value"]
+    lang = await auth.get_user_lang(tokens["session_token"]["value"])
+    country = lang[:-2]
+    head = request_parts.GRAPHQL_HEAD
+    head["Authorization"] = f"Bearer {b}"
+    head["Accept-Language"] = lang
+    head["X-Web-View-Ver"] = version
+    head["Referer"] = f"{constants.SPLATNET_URL}?lang={lang}&na_country={country}&na_lang={lang}"
+    graphql_body = {"extensions": {"persistedQuery": {"sha256Hash": constants.sha_keys["SettingQuery"],"version": 1}},"variables":{"naCountry":lang[:-2]}}
+    query = requests.post(constants.SPLATNET_URL + "/api/graphql", data=json.dumps(graphql_body), headers=head, cookies=dict(_gtoken=g))
     response = json.loads(query.text)
     return (response["data"]["currentPlayer"]["name"], response["data"]["currentPlayer"]["userIcon"]["url"])
 
